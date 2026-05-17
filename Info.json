@@ -16,5 +16,8 @@
   "preferencesPage": "pref.html",
   "preferenceDefaults": {
     "apiKey": "f7ce594d-226f-4eea-b6d4-a6f137729e33:fx"
+  },
+  "sidebarTab": {
+    "name": "DeepL"
   }
 }
