@@ -86,58 +86,10 @@ async function translateTexts(texts, targetLang, apiKey) {
   return translated;
 }
 
-// --- Ana ceviri fonksiyonu ---
-// search() cagirildiginda ceviriyi yapar, sonucu subtitle item olarak dondurur
-async function doTranslate(targetLang, langLabel) {
-  var apiKey = getApiKey();
-  if (!apiKey) {
-    _core.osd("DeepL: Preferences'a API key girin!");
-    return [];
-  }
-
-  var subPath = getCurrentSubPath();
-  if (!subPath) {
-    _core.osd("DeepL: Once bir altyazi yukleyin (1. track)");
-    return [];
-  }
-
-  _core.osd("DeepL: " + langLabel + " icin ceviri basliyor...");
-
-  try {
-    var srtContent = _file.read(subPath);
-    var entries = parseSRT(srtContent);
-    if (!entries.length) {
-      _core.osd("DeepL: Altyazi okunamadi.");
-      return [];
-    }
-
-    var texts = entries.map(function(e) { return stripTags(e.text); });
-    var translated = await translateTexts(texts, targetLang, apiKey);
-
-    var newSRT = buildSRT(entries.map(function(e, i) {
-      return { index: e.index, timing: e.timing, text: translated[i] || e.text };
-    }));
-
-    var outPath = "@tmp/deepl_" + targetLang.toLowerCase() + "_" + Date.now() + ".srt";
-    _file.write(outPath, newSRT);
-
-    _core.osd("DeepL: " + langLabel + " cevirisi hazir!");
-
-    // Tek bir item dondur - kullanici secince download() cagirilir
-    return [_subtitle.item(outPath, {
-      name: "[DeepL] " + langLabel,
-      lang: langLabel,
-      author: "DeepL"
-    })];
-
-  } catch(err) {
-    _core.osd("DeepL Hata: " + err.message);
-    _console.log("DeepL error: " + err);
-    return [];
-  }
-}
-
 // --- Provider kayitlari ---
+// Her provider icin son cevrilen path'i sakla (download() icin)
+var _cachedPaths = {};
+
 var DEEPL_LANGS = [
   { id: "deepl-tr", lang: "TR", label: "Turkce" },
   { id: "deepl-bg", lang: "BG", label: "Bulgarca" }
@@ -147,43 +99,84 @@ DEEPL_LANGS.forEach(function(p) {
   _subtitle.registerProvider(p.id, {
 
     // search: ceviriyi yap, hazir dosyayi item olarak dondur
-    search: function() {
-      return doTranslate(p.lang, p.label);
+    search: async function() {
+      var apiKey = getApiKey();
+      if (!apiKey) {
+        _core.osd("DeepL: Lutfen Preferences'a API key girin!");
+        return [];
+      }
+      var subPath = getCurrentSubPath();
+      if (!subPath) {
+        _core.osd("DeepL: Once bir altyazi yukleyin (1. track)");
+        return [];
+      }
+      _core.osd("DeepL: " + p.label + " icin ceviri basliyor...");
+      try {
+        var srtContent = _file.read(subPath);
+        var entries = parseSRT(srtContent);
+        if (!entries.length) {
+          _core.osd("DeepL: Altyazi okunamadi veya bos.");
+          return [];
+        }
+        var texts = entries.map(function(e) { return stripTags(e.text); });
+        var translated = await translateTexts(texts, p.lang, apiKey);
+        var newSRT = buildSRT(entries.map(function(e, i) {
+          return { index: e.index, timing: e.timing, text: translated[i] || e.text };
+        }));
+        var outPath = "@tmp/deepl_" + p.lang.toLowerCase() + "_" + Date.now() + ".srt";
+        _file.write(outPath, newSRT);
+        // Path'i sakla, download() icin
+        _cachedPaths[p.id] = outPath;
+        _core.osd("DeepL: " + p.label + " cevirisi hazir - secin!");
+        return [{
+          name: "[DeepL] " + p.label + " Cevirisi",
+          data: { path: outPath }
+        }];
+      } catch(err) {
+        _core.osd("DeepL Hata: " + err.message);
+        _console.log("DeepL error: " + err);
+        return [];
+      }
     },
 
     // description: listede ne gozuksun
     description: function(item) {
       return {
-        name: "[DeepL] " + p.label + " Cevirisi",
-        left: p.label,
-        right: "DeepL"
+        name:  "[DeepL] " + p.label + " Cevirisi",
+        left:  p.label,
+        right: "DeepL AI"
       };
     },
 
     // download: kullanici secti - 2. track olarak yukle
-    download: function(item) {
-      return new Promise(function(resolve, reject) {
-        try {
-          var path = item.data.url;
-          // once normal yukle
-          _core.subtitle.loadTrack(path).then(function() {
-            // simdi 2. track olarak ata
-            // az once yuklenen track en son eklenen olacak
-            var tracks = _core.subtitle.tracks;
-            var newTrack = tracks[tracks.length - 1];
-            if (newTrack) {
-              _core.subtitle.secondId = newTrack.id;
-              _core.osd("DeepL: " + p.label + " 2. altyazi olarak yuklendi!");
-            }
-            resolve(path);
-          }).catch(function(e) {
-            // loadTrack basarisiz olursa sadece path dondur
-            resolve(path);
-          });
-        } catch(e) {
-          reject(e);
+    download: async function(item) {
+      // Once cached path'den, sonra item.data.path'den al
+      var path = _cachedPaths[p.id];
+      if (!path && item && item.data) path = item.data.path || item.data.url;
+      if (!path) {
+        _core.osd("DeepL: Dosya bulunamadi, tekrar ceviri yapiliyor...");
+        // Fallback: tekrar cevir
+        var results = await _subtitle.providers[p.id].search();
+        path = _cachedPaths[p.id];
+      }
+      if (!path) {
+        _core.osd("DeepL: Ceviri dosyasi olusturulamadi.");
+        return null;
+      }
+      // Once primary olarak yukle
+      await _core.subtitle.loadTrack(path);
+      // Simdi en son yuklenen track'i 2. track olarak ata
+      try {
+        var tracks = _core.subtitle.tracks;
+        if (tracks && tracks.length > 0) {
+          var last = tracks[tracks.length - 1];
+          _core.subtitle.secondId = last.id;
+          _core.osd("DeepL: " + p.label + " 2. altyazi olarak yuklendi!");
         }
-      });
+      } catch(e) {
+        _console.log("secondId set err: " + e);
+      }
+      return path;
     }
   });
 });
