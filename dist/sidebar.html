@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    font-size: 13px;
+    padding: 16px;
+    background: transparent;
+    color: #fff;
+  }
+  h3 {
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    opacity: 0.8;
+  }
+  .btn {
+    display: block;
+    width: 100%;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 13px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .btn:hover { background: rgba(255,255,255,0.25); }
+  .btn:active { background: rgba(255,255,255,0.1); }
+  #status {
+    margin-top: 12px;
+    font-size: 11px;
+    opacity: 0.6;
+    min-height: 16px;
+  }
+</style>
+</head>
+<body>
+  <h3>DeepL Translator</h3>
+  <button class="btn" onclick="translate('TR')">Turkce'ye Cevir (TR)</button>
+  <button class="btn" onclick="translate('BG')">Bulgarcaya Cevir (BG)</button>
+  <div id="status">Hazir.</div>
+  <script>
+    function translate(lang) {
+      document.getElementById('status').textContent = 'Ceviri basliyor...';
+      iina.postMessage('translate', { lang: lang });
+    }
+    iina.onMessage('status', function(data) {
+      document.getElementById('status').textContent = data.text;
+    });
+  </script>
+</body>
+</html>
