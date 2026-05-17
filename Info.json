@@ -10,6 +10,7 @@
   "ghVersion": 2,
   "ghRepo": "6jzpwxtn2k-bot/iina-deepl-translator",
   "entry": "dist/index.js",
+  "global": "dist/global.js",
   "permissions": ["show-osd", "network-request", "file-system"],
   "allowedDomains": ["*"],
   "preferencesPage": "pref.html",
