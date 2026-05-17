@@ -5,63 +5,6 @@
 
 const { core, http, file, preferences, mpv, sidebar } = iina;
 
-// --- Sidebar HTML ---
-const SIDEBAR_HTML = `
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-    font-size: 13px;
-    padding: 16px;
-    background: transparent;
-    color: #fff;
-  }
-  h3 { font-size: 13px; font-weight: 600; margin-bottom: 12px; opacity: 0.8; }
-  .btn {
-    display: block;
-    width: 100%;
-    padding: 8px 12px;
-    margin-bottom: 8px;
-    background: rgba(255,255,255,0.15);
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 6px;
-    color: #fff;
-    font-size: 13px;
-    cursor: pointer;
-    text-align: left;
-  }
-  .btn:hover { background: rgba(255,255,255,0.25); }
-  .btn:active { background: rgba(255,255,255,0.1); }
-  #status {
-    margin-top: 12px;
-    font-size: 11px;
-    opacity: 0.6;
-    min-height: 16px;
-  }
-</style>
-</head>
-<body>
-  <h3>DeepL Translator</h3>
-  <button class="btn" id="btn-tr" onclick="translate('TR')">Turkce'ye Cevir (TR)</button>
-  <button class="btn" id="btn-bg" onclick="translate('BG')">Bulgarcaya Cevir (BG)</button>
-  <div id="status">Hazir.</div>
-  <script>
-    function translate(lang) {
-      document.getElementById('status').textContent = 'Ceviri basliyor...';
-      iina.postMessage('translate', { lang: lang });
-    }
-    iina.onMessage('status', function(data) {
-      document.getElementById('status').textContent = data.text;
-    });
-  <\/script>
-</body>
-</html>
-`;
-
 // --- SRT Parser ---
 function parseSRT(text) {
   const blocks = text.trim().replace(/\r\n/g, "\n").split(/\n\n+/);
@@ -72,7 +15,7 @@ function parseSRT(text) {
     entries.push({
       index: lines[0].trim(),
       timing: lines[1].trim(),
-      text: lines.slice(2).join("\n")
+      text: lines.slice(2).join("\n"),
     });
   }
   return entries;
@@ -106,13 +49,17 @@ function getSubtitlePath() {
 
 // --- DeepL API ---
 async function translateTexts(texts, targetLang) {
-  const apiKey = preferences.get("apiKey") || "f7ce594d-226f-4eea-b6d4-a6f137729e33:fx";
+  const apiKey = preferences.get("apiKey") || "";
+  if (!apiKey) {
+    throw new Error("DeepL API anahtari ayarlanmamis. Lutfen eklenti tercihlerinden API anahtarini girin.");
+  }
   const BATCH = 50;
   const translated = [];
   for (let i = 0; i < texts.length; i += BATCH) {
     const batch = texts.slice(i, i + BATCH);
-    const body = batch.map((t) => `text=${encodeURIComponent(t)}`).join("&")
-      + `&target_lang=${targetLang}`;
+    const body =
+      batch.map((t) => `text=${encodeURIComponent(t)}`).join("&") +
+      `&target_lang=${targetLang}`;
     const res = await http.post("https://api-free.deepl.com/v2/translate", {
       headers: {
         Authorization: `DeepL-Auth-Key ${apiKey}`,
@@ -132,11 +79,11 @@ async function doTranslate(targetLang, langLabel) {
   const trackPath = getSubtitlePath();
   if (!trackPath) {
     core.osd("Harici altyazi yuklenmemis.");
-    sidebar.postMessage("status", { text: "Hata: Harici .srt altyazi yukle." });
+    sidebar.postMessage("status", { text: "Hata: Once harici .srt altyazi yukle." });
     return;
   }
   core.osd(`${langLabel} icin ceviri basliyor...`);
-  sidebar.postMessage("status", { text: `${langLabel} cevrilyor...` });
+  sidebar.postMessage("status", { text: `${langLabel} cevriliyor...` });
   try {
     const srtContent = file.read(trackPath);
     const entries = parseSRT(srtContent);
@@ -146,7 +93,9 @@ async function doTranslate(targetLang, langLabel) {
     }
     const texts = entries.map((e) => stripTags(e.text));
     const translated = await translateTexts(texts, targetLang);
-    const newSRT = buildSRT(entries.map((e, i) => ({ ...e, text: translated[i] || e.text })));
+    const newSRT = buildSRT(
+      entries.map((e, i) => ({ ...e, text: translated[i] || e.text }))
+    );
     const outPath = `@tmp/translated_${targetLang.toLowerCase()}_${Date.now()}.srt`;
     file.write(outPath, newSRT);
     await core.subtitle.loadTrack(outPath);
@@ -160,8 +109,7 @@ async function doTranslate(targetLang, langLabel) {
 }
 
 // --- Sidebar setup ---
-sidebar.loadString(SIDEBAR_HTML);
-
+sidebar.loadFile("dist/sidebar.html");
 sidebar.onMessage("translate", (data) => {
   if (data.lang === "TR") doTranslate("TR", "Turkce");
   else if (data.lang === "BG") doTranslate("BG", "Bulgarca");
