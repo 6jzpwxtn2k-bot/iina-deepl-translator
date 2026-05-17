@@ -1,8 +1,8 @@
 {
   "name": "DeepL Subtitle Translator",
   "identifier": "io.github.iina-deepl-translator",
-  "version": "1.0.0",
-  "description": "Translates the current subtitle track to Turkish or Bulgarian using DeepL API",
+  "version": "2.0.0",
+  "description": "Mevcut altyaziyi DeepL ile Turkce veya Bulgarcaya cevirir, 2. track olarak yukler.",
   "author": {
     "name": "6jzpwxtn2k-bot",
     "url": "https://github.com/6jzpwxtn2k-bot/iina-deepl-translator"
@@ -10,14 +10,14 @@
   "ghVersion": 2,
   "ghRepo": "6jzpwxtn2k-bot/iina-deepl-translator",
   "entry": "dist/index.js",
-  "global": "dist/global.js",
   "permissions": ["show-osd", "network-request", "file-system"],
   "allowedDomains": ["*"],
   "preferencesPage": "pref.html",
   "preferenceDefaults": {
-    "apiKey": "f7ce594d-226f-4eea-b6d4-a6f137729e33:fx"
+    "apiKey": ""
   },
-  "sidebarTab": {
-    "name": "DeepL"
-  }
+  "subtitleProviders": [
+    { "id": "deepl-tr", "name": "DeepL: Turkceye Cevir" },
+    { "id": "deepl-bg", "name": "DeepL: Bulgarcaya Cevir" }
+  ]
 }
