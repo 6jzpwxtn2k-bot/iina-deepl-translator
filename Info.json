@@ -1,0 +1,18 @@
+{
+  "name": "DeepL Subtitle Translator",
+  "identifier": "io.github.iina-deepl-translator",
+  "version": "1.0.0",
+  "author": "tolotp",
+  "description": "Translates the current subtitle track to Turkish or Bulgarian using DeepL API",
+  "entry": "dist/index.js",
+  "permissions": ["network-request", "file-system"],
+  "allowedDomains": ["api-free.deepl.com"],
+  "preferenceItems": [
+    {
+      "key": "apiKey",
+      "type": "text",
+      "title": "DeepL API Key",
+      "value": "f7ce594d-226f-4eea-b6d4-a6f137729e33:fx"
+    }
+  ]
+}
