@@ -1,7 +1,7 @@
 "use strict";
 
 // global.js - runs always (even without a video)
-// Menu items for subtitle translation
+// Handles menu registration and subtitle translation via DeepL.
 
 const { menu, core, http, file, preferences, mpv } = iina;
 
@@ -28,7 +28,7 @@ function stripTags(str) {
   return str.replace(/<[^>]*>/g, "");
 }
 
-// Get subtitle file path from mpv track list
+// --- Get subtitle file path from mpv track list ---
 function getSubtitlePath() {
   try {
     const sid = mpv.getProperty("sid");
@@ -46,15 +46,16 @@ function getSubtitlePath() {
   return null;
 }
 
-// Translate with DeepL
+// --- Translate with DeepL (auto-detect source language) ---
 async function translateTexts(texts, targetLang) {
   const apiKey = preferences.get("apiKey") || "f7ce594d-226f-4eea-b6d4-a6f137729e33:fx";
   const BATCH = 50;
   const translated = [];
   for (let i = 0; i < texts.length; i += BATCH) {
     const batch = texts.slice(i, i + BATCH);
+    // No source_lang: DeepL will auto-detect the source language
     const body = batch.map((t) => `text=${encodeURIComponent(t)}`).join("&")
-      + `&target_lang=${targetLang}&source_lang=EN`;
+      + `&target_lang=${targetLang}`;
     const res = await http.post("https://api-free.deepl.com/v2/translate", {
       headers: {
         Authorization: `DeepL-Auth-Key ${apiKey}`,
@@ -69,6 +70,7 @@ async function translateTexts(texts, targetLang) {
   return translated;
 }
 
+// --- Main translation handler ---
 async function doTranslate(targetLang, langLabel) {
   const trackPath = getSubtitlePath();
   if (!trackPath) {
@@ -79,7 +81,10 @@ async function doTranslate(targetLang, langLabel) {
   try {
     const srtContent = file.read(trackPath);
     const entries = parseSRT(srtContent);
-    if (!entries.length) { core.osd("Cannot parse subtitle."); return; }
+    if (!entries.length) {
+      core.osd("Cannot parse subtitle.");
+      return;
+    }
     const texts = entries.map((e) => stripTags(e.text));
     const translated = await translateTexts(texts, targetLang);
     const newSRT = buildSRT(entries.map((e, i) => ({ ...e, text: translated[i] || e.text })));
@@ -93,7 +98,7 @@ async function doTranslate(targetLang, langLabel) {
   }
 }
 
-// Register menu
+// --- Register menu ---
 const translateMenu = menu.item("Translate Subtitle");
 translateMenu.addSubmenuItem(menu.item("Translate to Turkish (TR)", () => doTranslate("TR", "Turkish")));
 translateMenu.addSubmenuItem(menu.item("Translate to Bulgarian (BG)", () => doTranslate("BG", "Bulgarian")));
